@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
-from twitchmain import get_balance, set_balance, award_watchtime, CLIENT_ID as BOT_CLIENT_ID, CLIENT_SECRET as BOT_CLIENT_SECRET
+from twitchmain import get_balance, set_balance, award_watchtime, ensure_user, CLIENT_ID as BOT_CLIENT_ID, CLIENT_SECRET as BOT_CLIENT_SECRET, USE_REDIS, ECON_FILE
 import random
 import os
 import secrets
@@ -104,11 +104,19 @@ def api_me():
         user = session.get("user")
         if not user:
             return jsonify({"error": "unauthenticated"}), 401
-        info = award_watchtime(user["login"])  # also ensures user record exists
+        # Seed a default record, then award watchtime
+        ensure_user(user["login"]) 
+        info = award_watchtime(user["login"])  # may update balance based on time watched
+        bal = get_balance(user["login"]) if info is not None else 0
         return jsonify({
             "user": user,
-            "balance": int(info.get("balance", 0)),
-            "debug": {"client_id_suffix": (WEB_CLIENT_ID or '')[-6:], "redirect_uri": WEB_REDIRECT_URI, "econ_file": os.path.abspath(ECON_FILE) if 'ECON_FILE' in globals() else None}
+            "balance": int(bal),
+            "debug": {
+                "client_id_suffix": (WEB_CLIENT_ID or '')[-6:],
+                "redirect_uri": WEB_REDIRECT_URI,
+                "econ_file": os.path.abspath(ECON_FILE),
+                "use_redis": bool(USE_REDIS)
+            }
         })
     except Exception as e:
         return jsonify({"error": f"server error: {e}"}), 500
