@@ -21,25 +21,32 @@ BANNED_WORDS = [
 ]
 
 # Economy settings for BoulderCoin
-ECON_FILE = "bouldercoin.json"
+# Use /tmp on serverless platforms (e.g., Vercel) where the repo FS is read-only.
+ECON_FILE = os.environ.get("ECON_FILE") or ("/tmp/bouldercoin.json" if os.environ.get("VERCEL") else "bouldercoin.json")
 START_BALANCE = 100
 HOURLY_REWARD = 25
 
 # Simple JSON-backed store
 
 def load_economy():
-    if os.path.exists(ECON_FILE):
-        try:
+    try:
+        if os.path.exists(ECON_FILE):
             with open(ECON_FILE, "r") as f:
                 return json.load(f)
-        except Exception:
-            return {}
+    except Exception as e:
+        print(f"⚠️ load_economy failed: {e}")
     return {}
 
 
 def save_economy(data: dict):
-    with open(ECON_FILE, "w") as f:
-        json.dump(data, f)
+    try:
+        # Ensure directory exists if a nested path is used
+        os.makedirs(os.path.dirname(ECON_FILE) or ".", exist_ok=True)
+        with open(ECON_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        # On read-only FS, avoid crashing the request
+        print(f"⚠️ save_economy failed (non-persistent env?): {e}")
 
 
 def _user_key(name: str) -> str:

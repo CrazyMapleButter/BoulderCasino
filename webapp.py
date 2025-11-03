@@ -100,15 +100,18 @@ def auth_callback():
 
 @app.get("/api/me")
 def api_me():
-    user = session.get("user")
-    if not user:
-        return jsonify({"error": "unauthenticated"}), 401
-    info = award_watchtime(user["login"])  # also ensures user record exists
-    return jsonify({
-        "user": user,
-        "balance": int(info.get("balance", 0)),
-        "debug": {"client_id_suffix": (WEB_CLIENT_ID or '')[-6:], "redirect_uri": WEB_REDIRECT_URI}
-    })
+    try:
+        user = session.get("user")
+        if not user:
+            return jsonify({"error": "unauthenticated"}), 401
+        info = award_watchtime(user["login"])  # also ensures user record exists
+        return jsonify({
+            "user": user,
+            "balance": int(info.get("balance", 0)),
+            "debug": {"client_id_suffix": (WEB_CLIENT_ID or '')[-6:], "redirect_uri": WEB_REDIRECT_URI, "econ_file": os.path.abspath(ECON_FILE) if 'ECON_FILE' in globals() else None}
+        })
+    except Exception as e:
+        return jsonify({"error": f"server error: {e}"}), 500
 
 @app.post("/api/balance")
 def api_balance():
