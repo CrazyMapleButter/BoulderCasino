@@ -7,6 +7,12 @@ import requests
 
 app = Flask(__name__, static_folder="web/static", template_folder="web/templates")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-change-me")
+# Ensure OAuth cookies survive cross-site redirect on HTTPS (Vercel)
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+    PREFERRED_URL_SCHEME="https",
+)
 
 # Prefer web-specific OAuth credentials from env; fallback to bot creds
 WEB_CLIENT_ID = os.environ.get("TWITCH_CLIENT_ID") or os.environ.get("WEB_CLIENT_ID") or BOT_CLIENT_ID
