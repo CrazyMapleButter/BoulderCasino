@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slots • BoulderCasino</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="slots">
+    <div class="noise"></div>
+    <header>
+      <h1>Slots</h1>
+      <p><a class="btn" href="/">← Back</a></p>
+    </header>
+
+    <main>
+      <section class="card user">
+        <div id="auth-controls" class="row">
+<a id="login" class="btn primary" href="/login">Sign in with Twitch</a>
+          <div id="user-info" class="hide">
+            <div>Signed in as <strong id="display-name"></strong></div>
+            <a id="logout" class="btn" href="/logout">Logout</a>
+          </div>
+        </div>
+        <div class="balance">Balance: <span id="balance">-</span> 🪨</div>
+      </section>
+
+      <section class="card slots">
+        <h2>Slots</h2>
+        <div class="reels" id="reels">
+          <div class="reel" id="reel-1"></div>
+          <div class="reel" id="reel-2"></div>
+          <div class="reel" id="reel-3"></div>
+        </div>
+        <div class="row">
+          <input id="slots-bet" type="number" placeholder="Bet" min="1" />
+          <button id="spin" class="btn accent">Spin</button>
+        </div>
+        <div id="slots-result" class="result"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

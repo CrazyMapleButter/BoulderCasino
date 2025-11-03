@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BoulderCasino</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="home">
+    <div class="noise"></div>
+    <header>
+      <h1>BoulderCasino</h1>
+      <p>Choose your game</p>
+    </header>
+
+    <main>
+      <section class="card user">
+        <div id="auth-controls" class="row">
+<a id="login" class="btn primary" href="/login">Sign in with Twitch</a>
+          <div id="user-info" class="hide">
+            <div>Signed in as <strong id="display-name"></strong></div>
+            <a id="logout" class="btn" href="/logout">Logout</a>
+          </div>
+        </div>
+        <div class="balance">Balance: <span id="balance">-</span> 🪨</div>
+      </section>
+
+      <section class="grid">
+        <a class="card link-card" href="/slots">
+          <h2>Slots</h2>
+          <div>Spin the reels and win big.</div>
+        </a>
+        <a class="card link-card" href="/double">
+          <h2>Double or Nothing</h2>
+          <div>50/50 to double your bet.</div>
+        </a>
+<a class="card link-card" href="/blackjack">
+          <h2>Blackjack</h2>
+          <div>classic game of blackjack against the dealer</div>
+        </a>
+      </section>
+    </main>
+
+    <footer>
+      <small>All wins/losses update the same BoulderCoin file.</small>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

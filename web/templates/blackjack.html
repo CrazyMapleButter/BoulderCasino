@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blackjack • BoulderCasino</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="blackjack">
+    <div class="noise"></div>
+    <header>
+      <h1>Blackjack</h1>
+      <p><a class="btn" href="/">← Back</a></p>
+    </header>
+
+    <main>
+      <section class="card user">
+        <div id="auth-controls" class="row">
+<a id="login" class="btn primary" href="/login">Sign in with Twitch</a>
+          <div id="user-info" class="hide">
+            <div>Signed in as <strong id="display-name"></strong></div>
+            <a id="logout" class="btn" href="/logout">Logout</a>
+          </div>
+        </div>
+        <div class="balance">Balance: <span id="balance">-</span> 🪨</div>
+      </section>
+
+      <section class="card">
+        <h2>Blackjack</h2>
+        <div class="row">
+          <input id="bj-bet" type="number" placeholder="Bet" min="1" />
+          <button id="bj-deal" class="btn accent">Deal</button>
+          <button id="bj-hit" class="btn" disabled>Hit</button>
+          <button id="bj-stand" class="btn" disabled>Stand</button>
+        </div>
+        <div class="table">
+          <div>Dealer: <span id="bj-dealer"></span></div>
+          <div>You: <span id="bj-player"></span></div>
+        </div>
+        <div id="bj-result" class="result"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
