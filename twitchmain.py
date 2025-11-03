@@ -6,6 +6,7 @@ from flask import Flask, request
 from twitchio.ext import commands
 import threading
 import random
+from urllib.parse import quote
 
 CLIENT_ID = "cdj1pz1si3fdvslio16357do6shwzb"
 CLIENT_SECRET = "zr6apemk5gui5xvooxvl0p5idssa42"
@@ -26,9 +27,18 @@ ECON_FILE = os.environ.get("ECON_FILE") or ("/tmp/bouldercoin.json" if os.enviro
 START_BALANCE = 100
 HOURLY_REWARD = 25
 
-# Simple JSON-backed store
+# Optional Redis (Upstash) persistence via REST API (best for Vercel)
+REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
+REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+USE_REDIS = bool(REDIS_URL and REDIS_TOKEN)
+REDIS_PREFIX = os.environ.get("BC_REDIS_PREFIX", "bc:")
+
+# Simple JSON-backed store (local dev) or Redis (prod)
 
 def load_economy():
+    if USE_REDIS:
+        # Not used in Redis mode (we fetch per-user), return empty map
+        return {}
     try:
         if os.path.exists(ECON_FILE):
             with open(ECON_FILE, "r") as f:
@@ -39,6 +49,9 @@ def load_economy():
 
 
 def save_economy(data: dict):
+    if USE_REDIS:
+        # Not used in Redis mode
+        return
     try:
         # Ensure directory exists if a nested path is used
         os.makedirs(os.path.dirname(ECON_FILE) or ".", exist_ok=True)
@@ -49,14 +62,49 @@ def save_economy(data: dict):
         print(f"⚠️ save_economy failed (non-persistent env?): {e}")
 
 
+def _redis_headers():
+    return {"Authorization": f"Bearer {REDIS_TOKEN}"}
+
+
+def _redis_get(key: str):
+    try:
+        r = requests.get(f"{REDIS_URL}/get/{quote(key)}", headers=_redis_headers(), timeout=5)
+        js = r.json()
+        return js.get("result")
+    except Exception as e:
+        print(f"⚠️ redis get failed: {e}")
+        return None
+
+
+def _redis_set(key: str, value: str):
+    try:
+        requests.post(f"{REDIS_URL}/set/{quote(key)}/{quote(value)}", headers=_redis_headers(), timeout=5)
+    except Exception as e:
+        print(f"⚠️ redis set failed: {e}")
+
+
 def _user_key(name: str) -> str:
     return (name or "").lower()
 
 
 def ensure_user(name: str) -> dict:
-    data = load_economy()
     key = _user_key(name)
     now = time.time()
+    if USE_REDIS:
+        rkey = f"{REDIS_PREFIX}{key}"
+        raw = _redis_get(rkey)
+        info = None
+        if raw:
+            try:
+                info = json.loads(raw)
+            except Exception:
+                info = None
+        if not info:
+            info = {"balance": START_BALANCE, "last_award": now}
+            _redis_set(rkey, json.dumps(info))
+        return info
+    # file mode
+    data = load_economy()
     info = data.get(key)
     if not info:
         info = {"balance": START_BALANCE, "last_award": now}
@@ -67,9 +115,31 @@ def ensure_user(name: str) -> dict:
 
 def award_watchtime(name: str) -> dict:
     """Award HOURLY_REWARD per full hour since last_award when the user chats."""
-    data = load_economy()
     key = _user_key(name)
     now = time.time()
+    if USE_REDIS:
+        rkey = f"{REDIS_PREFIX}{key}"
+        raw = _redis_get(rkey)
+        info = None
+        if raw:
+            try:
+                info = json.loads(raw)
+            except Exception:
+                info = None
+        if not info:
+            info = {"balance": START_BALANCE, "last_award": now}
+            _redis_set(rkey, json.dumps(info))
+            return info
+        last = info.get("last_award", now)
+        elapsed = now - last
+        if elapsed >= 3600:
+            hours = int(elapsed // 3600)
+            info["balance"] = int(info.get("balance", START_BALANCE)) + (HOURLY_REWARD * hours)
+            info["last_award"] = last + (3600 * hours)
+            _redis_set(rkey, json.dumps(info))
+        return info
+    # file mode
+    data = load_economy()
     info = data.get(key)
     if not info:
         info = {"balance": START_BALANCE, "last_award": now}
@@ -88,13 +158,24 @@ def award_watchtime(name: str) -> dict:
 
 
 def get_balance(name: str) -> int:
+    if USE_REDIS:
+        info = ensure_user(name)
+        return int(info.get("balance", START_BALANCE))
     return int(ensure_user(name).get("balance", START_BALANCE))
 
 
 def set_balance(name: str, new_balance: int) -> dict:
-    data = load_economy()
     key = _user_key(name)
     now = time.time()
+    if USE_REDIS:
+        rkey = f"{REDIS_PREFIX}{key}"
+        info = ensure_user(name)
+        info["balance"] = int(new_balance)
+        if not info.get("last_award"):
+            info["last_award"] = now
+        _redis_set(rkey, json.dumps(info))
+        return info
+    data = load_economy()
     info = data.get(key, {"balance": START_BALANCE, "last_award": now})
     info["balance"] = int(new_balance)
     data[key] = info
