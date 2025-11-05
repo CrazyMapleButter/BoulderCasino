@@ -487,6 +487,10 @@ def start_bot(tokens):
         set_balance(branson, newbalanceforbranson)
         await ctx.send("Yeah I do too. He's a bitch. Y'know what I'm gonna take 10 BoulderCoins out of his pocket and give it to you. HA imagine being named Branson. Must suck.")
 
+    @bot.command(name="iwannagamble")
+    async def iwannagamble(ctx):
+        await ctx.send("Go gamble your life savings away! link is https://boulder.crazymaplebutter.com")
+
     @bot.event
     async def event_command_error(ctx, error):
         if isinstance(error, commands.CommandNotFound):
