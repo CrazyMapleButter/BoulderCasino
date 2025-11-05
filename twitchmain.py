@@ -8,6 +8,13 @@ import threading
 import random
 from urllib.parse import quote
 
+# Load local .env if present so the bot can read Redis creds without manual env setup
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:
+    pass
+
 CLIENT_ID = "cdj1pz1si3fdvslio16357do6shwzb"
 CLIENT_SECRET = "zr6apemk5gui5xvooxvl0p5idssa42"
 BOT_USERNAME = "boonga_prime"
@@ -276,6 +283,12 @@ def start_bot(tokens):
     access_token = tokens["access_token"]
     print(f"🔑 Using access token: {access_token[:20]}...")
     print(f"📺 Trying to connect to channel: {CHANNEL_NAME}")
+    # Persistence mode info
+    try:
+        mode = "Redis" if USE_REDIS else f"JSON ({ECON_FILE})"
+        print(f"💾 Persistence: {mode}")
+    except Exception:
+        pass
 
     bot = commands.Bot(
         token=access_token,
