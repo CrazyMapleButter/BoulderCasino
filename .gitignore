@@ -3,3 +3,6 @@ __pycache__/
 bouldercoin.json
 tokens.json
 .env
+# Keep these local only
+main.py
+live_notification.py
