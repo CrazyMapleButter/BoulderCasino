@@ -210,12 +210,25 @@ def get_token_from_code(code):
         "grant_type": "authorization_code",
         "redirect_uri": REDIRECT_URI,
     }
-    response = requests.post(url, data=payload)
-    response.raise_for_status()
-    tokens = response.json()
-    tokens["timestamp"] = time.time()
-    save_tokens(tokens)
-    return tokens
+    # Debug: show which redirect_uri and client_id are used for the exchange
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code != 200:
+            try:
+                print(f"❌ Token exchange failed ({response.status_code}). redirect_uri={REDIRECT_URI}")
+                print(f"❌ Error body: {response.text}")
+            except Exception:
+                pass
+        response.raise_for_status()
+        tokens = response.json()
+        tokens["timestamp"] = time.time()
+        save_tokens(tokens)
+        return tokens
+    except Exception as e:
+        # Surface more context for troubleshooting redirect/client issues
+        print(f"❌ Exception during token exchange: {e}")
+        print(f"   client_id suffix={(CLIENT_ID or '')[-6:]}, redirect_uri={REDIRECT_URI}")
+        raise
 
 
 def refresh_token(refresh_token):
