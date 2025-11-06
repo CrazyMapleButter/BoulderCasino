@@ -19,7 +19,7 @@ CLIENT_ID = "cdj1pz1si3fdvslio16357do6shwzb"
 CLIENT_SECRET = "zr6apemk5gui5xvooxvl0p5idssa42"
 BOT_USERNAME = "boonga_prime"
 CHANNEL_NAME = "theswainbob"
-REDIRECT_URI = "http://localhost:5050/auth/callback"
+REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:5050/auth/callback")
 TOKEN_FILE = "tokens.json"
 
 BANNED_WORDS = [
@@ -261,6 +261,7 @@ def ensure_valid_token():
         server_thread.start()
 
         print("👉 Open this URL in your browser:")
+        print(f"(redirect_uri={REDIRECT_URI})")
         print(f"https://id.twitch.tv/oauth2/authorize"
               f"?response_type=code"
               f"&client_id={CLIENT_ID}"
