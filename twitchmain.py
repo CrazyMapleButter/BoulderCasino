@@ -7,6 +7,7 @@ from twitchio.ext import commands
 import threading
 import random
 from urllib.parse import quote
+from collections import deque
 
 # Load local .env if present so the bot can read Redis creds without manual env setup
 try:
@@ -505,11 +506,22 @@ def start_bot(broadcaster_tokens):
     
     bot.handle_commands = custom_handle_commands
     
+    # Simple de-dup guard to avoid double-processing the same message
+    processed_message_ids = set()
+    recent_ids = deque(maxlen=1000)
+
     @bot.event
     async def event_message(message):
         # Ignore the bot's own messages
         if message.author and message.author.name and message.author.name.lower() == bot.nick.lower():
             return
+        # De-dupe by message id if available
+        mid = getattr(message, "id", None) or (message.tags.get("id") if getattr(message, "tags", None) else None)
+        if mid:
+            if mid in processed_message_ids:
+                return
+            processed_message_ids.add(mid)
+            recent_ids.append(mid)
         # Award watchtime on any chat message
         try:
             award_watchtime(message.author.name)
