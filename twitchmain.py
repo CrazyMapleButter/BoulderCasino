@@ -265,7 +265,7 @@ def ensure_valid_token():
               f"?response_type=code"
               f"&client_id={CLIENT_ID}"
               f"&redirect_uri={REDIRECT_URI}"
-              f"&scope=chat:read+chat:edit+moderator:manage:chat_messages+moderator:manage:banned_users")
+              f"&scope=chat:read+chat:edit+moderator:manage:chat_messages+moderator:manage:banned_users+channel:manage:broadcast")
 
         shutdown_flag.wait()
 
@@ -423,11 +423,81 @@ def start_bot(tokens):
     @bot.command()
     async def youtube(ctx):
         await ctx.send("Check out my YouTube Channel!!! https://www.youtube.com/@theswainbob")
+
+    @bot.command(name="title")
+    async def title_cmd(ctx, *, new_title: str = None):
+        if not (getattr(ctx.author, "is_mod", False) or getattr(ctx.author, "is_broadcaster", False)):
+            return await ctx.send("Only mods can use this command.")
+        if not new_title:
+            return await ctx.send("Usage: !title <new stream title>")
+        try:
+            headers = {
+                "Client-ID": CLIENT_ID,
+                "Authorization": f"Bearer {bot.access_token}",
+                "Content-Type": "application/json",
+            }
+            r = requests.get(f"https://api.twitch.tv/helix/users?login={CHANNEL_NAME}", headers=headers)
+            if r.status_code != 200 or not r.json().get("data"):
+                return await ctx.send("Failed to resolve broadcaster ID.")
+            broadcaster_id = r.json()["data"][0]["id"]
+
+            patch_url = f"https://api.twitch.tv/helix/channels?broadcaster_id={broadcaster_id}"
+            resp = requests.patch(patch_url, headers=headers, json={"title": new_title})
+            if resp.status_code in (200, 204):
+                await ctx.send("Updated stream title.")
+            elif resp.status_code in (401, 403):
+                await ctx.send("Missing permission: channel:manage:broadcast. Re-authorize the bot.")
+            else:
+                await ctx.send(f"Failed to update title ({resp.status_code}).")
+        except Exception as e:
+            print(f"❌ Failed to update title: {e}")
+            await ctx.send("Error updating title.")
+
+    @bot.command(name="game")
+    async def game_cmd(ctx, *, game_query: str = None):
+        if not (getattr(ctx.author, "is_mod", False) or getattr(ctx.author, "is_broadcaster", False)):
+            return await ctx.send("Only mods can use this command.")
+        if not game_query:
+            return await ctx.send("Usage: !game <category name>")
+        try:
+            headers = {
+                "Client-ID": CLIENT_ID,
+                "Authorization": f"Bearer {bot.access_token}",
+                "Content-Type": "application/json",
+            }
+            search = requests.get(
+                f"https://api.twitch.tv/helix/search/categories?query={quote(game_query)}",
+                headers=headers,
+            )
+            if search.status_code != 200:
+                return await ctx.send(f"Category search failed ({search.status_code}).")
+            data = search.json().get("data", [])
+            if not data:
+                return await ctx.send("No matching category found.")
+            category = data[0]
+            category_id = category.get("id")
+            category_name = category.get("name") or category.get("game_name") or game_query
+
+            r = requests.get(f"https://api.twitch.tv/helix/users?login={CHANNEL_NAME}", headers=headers)
+            if r.status_code != 200 or not r.json().get("data"):
+                return await ctx.send("Failed to resolve broadcaster ID.")
+            broadcaster_id = r.json()["data"][0]["id"]
+
+            patch_url = f"https://api.twitch.tv/helix/channels?broadcaster_id={broadcaster_id}"
+            resp = requests.patch(patch_url, headers=headers, json={"game_id": category_id})
+            if resp.status_code in (200, 204):
+                await ctx.send(f"Updated category to {category_name}.")
+            elif resp.status_code in (401, 403):
+                await ctx.send("Missing permission: channel:manage:broadcast. Re-authorize the bot.")
+            else:
+                await ctx.send(f"Failed to update category ({resp.status_code}).")
+        except Exception as e:
+            print(f"❌ Failed to update category: {e}")
+            await ctx.send("Error updating category.")
     
     @bot.command(name="gamble")
     async def gamble(ctx, amount: str = None):
         user = ctx.author.name
-        # Ensure user exists and award any pending hourly coins
         award_watchtime(user)
         balance = get_balance(user)
 
@@ -452,7 +522,6 @@ def start_bot(tokens):
             await ctx.send(f"@{user} insufficient BoulderCoin. Balance: {balance}.")
             return
         
-        # 50/50 chance: lose the bet or double it
         if random.random() < 0.5:
             new_balance = balance - bet
             set_balance(user, new_balance)
