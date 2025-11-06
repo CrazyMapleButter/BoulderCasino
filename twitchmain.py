@@ -19,7 +19,7 @@ CLIENT_ID = "cdj1pz1si3fdvslio16357do6shwzb"
 CLIENT_SECRET = "zr6apemk5gui5xvooxvl0p5idssa42"
 BOT_USERNAME = "boonga_prime"
 CHANNEL_NAME = "theswainbob"
-REDIRECT_URI = "http://127.0.0.1:5050/auth/callback"
+REDIRECT_URI = "http://localhost:5050/auth/callback"
 TOKEN_FILE = "tokens.json"
 
 BANNED_WORDS = [
