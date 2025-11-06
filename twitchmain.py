@@ -244,7 +244,7 @@ def ensure_valid_token():
         code_holder = {}
         shutdown_flag = threading.Event()
 
-        @app.route("/")
+        @app.route("/auth/callback")
         def callback():
             code = request.args.get("code")
             if code:
@@ -254,7 +254,7 @@ def ensure_valid_token():
             return "❌ No code found."
 
         def run_server():
-            app.run(host='127.0.0.1', port=3000, debug=False, use_reloader=False)
+            app.run(host='127.0.0.1', port=5050, debug=False, use_reloader=False)
 
         server_thread = threading.Thread(target=run_server)
         server_thread.daemon = True
