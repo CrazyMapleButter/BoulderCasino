@@ -20,7 +20,11 @@ CLIENT_SECRET = "zr6apemk5gui5xvooxvl0p5idssa42"
 BOT_USERNAME = "boonga_prime"
 CHANNEL_NAME = "theswainbob"
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:5050/auth/callback")
-TOKEN_FILE = "tokens.json"
+# Two separate OAuth token stores:
+# - Broadcaster token (must be the channel owner; used for updating title/category)
+# - Bot token (the chat identity that sends messages and moderates)
+BROADCASTER_TOKEN_FILE = "tokens.json"  # keep existing filename for broadcaster tokens
+BOT_TOKEN_FILE = "bot_tokens.json"
 
 BANNED_WORDS = [
     "nigger",
@@ -189,14 +193,27 @@ def set_balance(name: str, new_balance: int) -> dict:
     save_economy(data)
     return info
 
+# Broadcaster token helpers
 def save_tokens(data):
-    with open(TOKEN_FILE, "w") as f:
+    with open(BROADCASTER_TOKEN_FILE, "w") as f:
         json.dump(data, f)
 
 
 def load_tokens():
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, "r") as f:
+    if os.path.exists(BROADCASTER_TOKEN_FILE):
+        with open(BROADCASTER_TOKEN_FILE, "r") as f:
+            return json.load(f)
+    return None
+
+# Bot token helpers
+def save_bot_tokens(data):
+    with open(BOT_TOKEN_FILE, "w") as f:
+        json.dump(data, f)
+
+
+def load_bot_tokens():
+    if os.path.exists(BOT_TOKEN_FILE):
+        with open(BOT_TOKEN_FILE, "r") as f:
             return json.load(f)
     return None
 
@@ -248,10 +265,10 @@ def refresh_token(refresh_token):
     return tokens
 
 
-def ensure_valid_token():
+def ensure_valid_broadcaster_token():
     tokens = load_tokens()
     if not tokens:
-        print("🌐 No tokens found. Starting local web server for authorization...")
+        print("🌐 No broadcaster tokens found. Starting local web server for authorization (login as the channel owner)...")
 
         app = Flask(__name__)
         code_holder = {}
@@ -273,7 +290,7 @@ def ensure_valid_token():
         server_thread.daemon = True
         server_thread.start()
 
-        print("👉 Open this URL in your browser:")
+        print("👉 Open this URL in your browser (broadcaster):")
         print(f"(redirect_uri={REDIRECT_URI})")
         print(f"https://id.twitch.tv/oauth2/authorize"
               f"?response_type=code"
@@ -285,18 +302,70 @@ def ensure_valid_token():
         shutdown_flag.wait()
 
         tokens = get_token_from_code(code_holder["code"])
-        print("✅ Access and refresh tokens saved!")
-        print("🚀 Proceeding to start bot...")
+        print("✅ Broadcaster tokens saved!")
 
     elif time.time() - tokens.get("timestamp", 0) > 3600:
         tokens = refresh_token(tokens["refresh_token"])
 
     return tokens
 
-def start_bot(tokens):
+
+def ensure_valid_bot_token():
+    tokens = load_bot_tokens()
+    if not tokens:
+        print("🌐 No bot tokens found. Starting local web server for authorization (login as bot account)")
+
+        app = Flask(__name__)
+        code_holder = {}
+        shutdown_flag = threading.Event()
+
+        @app.route("/auth/callback")
+        def callback():
+            code = request.args.get("code")
+            if code:
+                code_holder["code"] = code
+                shutdown_flag.set()
+                return "✅ Authorization complete! You can close this tab."
+            return "❌ No code found."
+
+        def run_server():
+            app.run(host='127.0.0.1', port=5050, debug=False, use_reloader=False)
+
+        server_thread = threading.Thread(target=run_server)
+        server_thread.daemon = True
+        server_thread.start()
+
+        print("👉 Open this URL in your browser (bot account):")
+        print(f"(redirect_uri={REDIRECT_URI})")
+        print(f"https://id.twitch.tv/oauth2/authorize"
+              f"?response_type=code"
+              f"&client_id={CLIENT_ID}"
+              f"&redirect_uri={REDIRECT_URI}"
+              f"&scope=chat:read+chat:edit+moderator:manage:chat_messages+moderator:manage:banned_users"
+              f"&force_verify=true")
+
+        shutdown_flag.wait()
+
+        tokens = get_token_from_code(code_holder["code"])
+        save_bot_tokens(tokens)
+        print("✅ Bot tokens saved!")
+
+    elif time.time() - tokens.get("timestamp", 0) > 3600:
+        # Refresh bot token using the same refresh flow but saving to bot file
+        new_tokens = refresh_token(tokens["refresh_token"])
+        save_bot_tokens(new_tokens)
+        tokens = new_tokens
+
+    return tokens
+
+def start_bot(broadcaster_tokens):
     print("🚀 Starting Twitch bot...")
-    access_token = tokens["access_token"]
-    print(f"🔑 Using access token: {access_token[:20]}...")
+    # Ensure we have a separate bot token for chat identity
+    bot_tokens = ensure_valid_bot_token()
+    bot_access_token = bot_tokens["access_token"]
+    print(f"🔑 Using chat token (bot) prefix: {bot_access_token[:20]}...")
+    access_token = bot_access_token
+    print(f"📺 Trying to connect to channel: {CHANNEL_NAME}")
     print(f"📺 Trying to connect to channel: {CHANNEL_NAME}")
     # Persistence mode info
     try:
@@ -310,18 +379,36 @@ def start_bot(tokens):
         prefix="!",
         initial_channels=[CHANNEL_NAME],
     )
-    bot.access_token = access_token
+    # Attach both tokens to the bot instance
+    bot.access_token_chat = bot_access_token
+    bot.access_token_broadcaster = broadcaster_tokens.get("access_token")
     print("🤖 Bot object created, attempting connection...")
 
     def auto_refresh():
         while True:
             time.sleep(1800)
-            current = load_tokens()
-            age = time.time() - current.get("timestamp", 0)
-            if age > 3.5 * 3600:
-                new_tokens = refresh_token(current["refresh_token"])
-                bot._http.token = new_tokens["access_token"]
-                print("✅ Updated bot token in memory.")
+            # Refresh broadcaster token if nearing expiry
+            try:
+                current_b = load_tokens()
+                age_b = time.time() - current_b.get("timestamp", 0)
+                if age_b > 3.5 * 3600:
+                    new_b = refresh_token(current_b["refresh_token"])
+                    bot.access_token_broadcaster = new_b["access_token"]
+                    print("✅ Updated broadcaster token in memory.")
+            except Exception:
+                pass
+            # Refresh bot chat token if nearing expiry
+            try:
+                current_bot = load_bot_tokens()
+                age_bot = time.time() - current_bot.get("timestamp", 0)
+                if age_bot > 3.5 * 3600:
+                    new_bot = refresh_token(current_bot["refresh_token"])
+                    save_bot_tokens(new_bot)
+                    bot._http.token = new_bot["access_token"]
+                    bot.access_token_chat = new_bot["access_token"]
+                    print("✅ Updated bot chat token in memory.")
+            except Exception:
+                pass
 
     threading.Thread(target=auto_refresh, daemon=True).start()
 
@@ -358,10 +445,9 @@ def start_bot(tokens):
                 try:
                     headers = {
                         "Client-ID": CLIENT_ID,
-                        "Authorization": f"Bearer {bot.access_token}",
+                        "Authorization": f"Bearer {bot.access_token_chat}",
                         "Content-Type": "application/json"
                     }
-                    
                     broadcaster_response = requests.get(f"https://api.twitch.tv/helix/users?login={CHANNEL_NAME}", headers=headers)
                     moderator_response = requests.get(f"https://api.twitch.tv/helix/users?login={BOT_USERNAME}", headers=headers)
                     user_response = requests.get(f"https://api.twitch.tv/helix/users?login={message.author.name}", headers=headers)
@@ -448,7 +534,7 @@ def start_bot(tokens):
         try:
             headers = {
                 "Client-ID": CLIENT_ID,
-                "Authorization": f"Bearer {bot.access_token}",
+                "Authorization": f"Bearer {bot.access_token_broadcaster}",
                 "Content-Type": "application/json",
             }
             r = requests.get(f"https://api.twitch.tv/helix/users?login={CHANNEL_NAME}", headers=headers)
@@ -477,7 +563,7 @@ def start_bot(tokens):
         try:
             headers = {
                 "Client-ID": CLIENT_ID,
-                "Authorization": f"Bearer {bot.access_token}",
+                "Authorization": f"Bearer {bot.access_token_broadcaster}",
                 "Content-Type": "application/json",
             }
             search = requests.get(
@@ -596,7 +682,7 @@ def start_bot(tokens):
         print(f"❌ Connection error: {e}")
 
 if __name__ == "__main__":
-    print("🎯 Getting tokens...")
-    tokens = ensure_valid_token()
-    print("🎯 Tokens obtained, starting bot...")
-    start_bot(tokens)
+    print("🎯 Getting broadcaster tokens...")
+    broadcaster_tokens = ensure_valid_broadcaster_token()
+    print("🎯 Broadcaster tokens obtained. Ensuring bot chat token...")
+    start_bot(broadcaster_tokens)
