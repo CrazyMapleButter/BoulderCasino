@@ -265,7 +265,8 @@ def ensure_valid_token():
               f"?response_type=code"
               f"&client_id={CLIENT_ID}"
               f"&redirect_uri={REDIRECT_URI}"
-              f"&scope=chat:read+chat:edit+moderator:manage:chat_messages+moderator:manage:banned_users+channel:manage:broadcast")
+              f"&scope=chat:read+chat:edit+moderator:manage:chat_messages+moderator:manage:banned_users+channel:manage:broadcast"
+              f"&force_verify=true")
 
         shutdown_flag.wait()
 
